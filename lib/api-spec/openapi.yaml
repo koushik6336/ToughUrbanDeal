@@ -1,0 +1,1164 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Distributed Job Scheduler API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: orgs
+    description: Organizations
+  - name: projects
+    description: Projects
+  - name: queues
+    description: Queues
+  - name: jobs
+    description: Jobs
+  - name: scheduled-jobs
+    description: Scheduled (cron) jobs
+  - name: workers
+    description: Workers
+  - name: dlq
+    description: Dead Letter Queue
+  - name: metrics
+    description: Metrics
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login and get JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /orgs:
+    get:
+      operationId: listOrgs
+      tags: [orgs]
+      summary: List organizations for current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+    post:
+      operationId: createOrg
+      tags: [orgs]
+      summary: Create organization
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /orgs/{orgId}/members:
+    post:
+      operationId: addOrgMember
+      tags: [orgs]
+      summary: Add a member to organization
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgMemberInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMember"
+        "404":
+          description: Org or user not found
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List projects for an org
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: orgId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create project
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{projectId}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get project by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          description: Not found
+
+  /queues:
+    get:
+      operationId: listQueues
+      tags: [queues]
+      summary: List queues for a project
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: projectId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Queue"
+    post:
+      operationId: createQueue
+      tags: [queues]
+      summary: Create queue
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueueInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+
+  /queues/{queueId}:
+    get:
+      operationId: getQueue
+      tags: [queues]
+      summary: Get queue by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queueId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateQueue
+      tags: [queues]
+      summary: Update queue config
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queueId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueueUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+
+  /queues/{queueId}/pause:
+    post:
+      operationId: pauseQueue
+      tags: [queues]
+      summary: Pause a queue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queueId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+
+  /queues/{queueId}/resume:
+    post:
+      operationId: resumeQueue
+      tags: [queues]
+      summary: Resume a paused queue
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queueId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Queue"
+
+  /queues/{queueId}/stats:
+    get:
+      operationId: getQueueStats
+      tags: [queues]
+      summary: Get queue statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: queueId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueueStats"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List jobs with filters
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: queueId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobPage"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a job
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /jobs/{jobId}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get job by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Not found
+
+  /jobs/{jobId}/executions:
+    get:
+      operationId: getJobExecutions
+      tags: [jobs]
+      summary: Get execution history for a job
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobExecution"
+
+  /jobs/{jobId}/logs:
+    get:
+      operationId: getJobLogs
+      tags: [jobs]
+      summary: Get logs for a job
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobLog"
+
+  /jobs/{jobId}/retry:
+    post:
+      operationId: retryJob
+      tags: [jobs]
+      summary: Retry a failed or dead-lettered job
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /scheduled-jobs:
+    get:
+      operationId: listScheduledJobs
+      tags: [scheduled-jobs]
+      summary: List scheduled job templates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: queueId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduledJob"
+    post:
+      operationId: createScheduledJob
+      tags: [scheduled-jobs]
+      summary: Create a cron-based scheduled job
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduledJobInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledJob"
+
+  /workers:
+    get:
+      operationId: listWorkers
+      tags: [workers]
+      summary: List all registered workers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Worker"
+
+  /workers/{workerId}/heartbeats:
+    get:
+      operationId: getWorkerHeartbeats
+      tags: [workers]
+      summary: Get heartbeat history for a worker
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: workerId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkerHeartbeat"
+
+  /dlq:
+    get:
+      operationId: listDeadLetterJobs
+      tags: [dlq]
+      summary: List dead letter jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: queueId
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeadLetterPage"
+
+  /dlq/{dlqId}/requeue:
+    post:
+      operationId: requeueDeadLetter
+      tags: [dlq]
+      summary: Requeue a dead letter job
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: dlqId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /metrics/throughput:
+    get:
+      operationId: getThroughputMetrics
+      tags: [metrics]
+      summary: Get throughput metrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: queueId
+          schema:
+            type: string
+        - in: query
+          name: range
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThroughputMetrics"
+
+  /metrics/summary:
+    get:
+      operationId: getMetricsSummary
+      tags: [metrics]
+      summary: Get overall system metrics summary
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsSummary"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    User:
+      type: object
+      required: [id, email, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        createdAt:
+          type: ["string", "null"]
+
+    UserInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        name:
+          type: string
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    Organization:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        ownerUserId:
+          type: ["string", "null"]
+        createdAt:
+          type: ["string", "null"]
+
+    OrganizationInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+
+    OrgMember:
+      type: object
+      required: [orgId, userId, role, joinedAt]
+      properties:
+        orgId:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+        joinedAt:
+          type: ["string", "null"]
+
+    OrgMemberInput:
+      type: object
+      required: [userId, role]
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+
+    Project:
+      type: object
+      required: [id, orgId, name, createdAt]
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: ["string", "null"]
+
+    ProjectInput:
+      type: object
+      required: [orgId, name]
+      properties:
+        orgId:
+          type: string
+        name:
+          type: string
+          minLength: 1
+
+    RetryPolicy:
+      type: object
+      required: [id, type, baseDelayMs, maxRetries]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [fixed, linear, exponential]
+        baseDelayMs:
+          type: integer
+        maxRetries:
+          type: integer
+        multiplier:
+          type: ["number", "null"]
+        createdAt:
+          type: ["string", "null"]
+
+    Queue:
+      type: object
+      required: [id, projectId, name, priority, concurrencyLimit, isPaused, createdAt]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        name:
+          type: string
+        priority:
+          type: integer
+        concurrencyLimit:
+          type: integer
+        isPaused:
+          type: boolean
+        defaultRetryPolicyId:
+          type: ["string", "null"]
+        createdAt:
+          type: ["string", "null"]
+
+    QueueInput:
+      type: object
+      required: [projectId, name]
+      properties:
+        projectId:
+          type: string
+        name:
+          type: string
+          minLength: 1
+        priority:
+          type: integer
+        concurrencyLimit:
+          type: integer
+        defaultRetryPolicyId:
+          type: string
+
+    QueueUpdate:
+      type: object
+      properties:
+        priority:
+          type: integer
+        concurrencyLimit:
+          type: integer
+        defaultRetryPolicyId:
+          type: ["string", "null"]
+
+    QueueStats:
+      type: object
+      required: [queueId, queued, running, completed, failed, deadLetter, total]
+      properties:
+        queueId:
+          type: string
+        queued:
+          type: integer
+        running:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        deadLetter:
+          type: integer
+        total:
+          type: integer
+
+    Job:
+      type: object
+      required: [id, queueId, type, payload, status, priority, runAt, attemptCount, maxAttempts, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        queueId:
+          type: string
+        type:
+          type: string
+        payload:
+          type: object
+        status:
+          type: string
+          enum: [queued, scheduled, claimed, running, completed, failed, dead_letter]
+        priority:
+          type: integer
+        runAt:
+          type: string
+        cronExpression:
+          type: ["string", "null"]
+        retryPolicyId:
+          type: ["string", "null"]
+        attemptCount:
+          type: integer
+        maxAttempts:
+          type: integer
+        idempotencyKey:
+          type: ["string", "null"]
+        workerId:
+          type: ["string", "null"]
+        claimedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: ["string", "null"]
+        updatedAt:
+          type: ["string", "null"]
+
+    JobInput:
+      type: object
+      required: [queueId, type]
+      properties:
+        queueId:
+          type: string
+        type:
+          type: string
+        payload:
+          type: object
+        priority:
+          type: integer
+        runAt:
+          type: string
+        cronExpression:
+          type: string
+        retryPolicyId:
+          type: string
+        maxAttempts:
+          type: integer
+        idempotencyKey:
+          type: string
+
+    JobPage:
+      type: object
+      required: [data, total, page, limit]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    JobExecution:
+      type: object
+      required: [id, attemptNumber, status, startedAt]
+      properties:
+        id:
+          type: string
+        jobId:
+          type: ["string", "null"]
+        workerId:
+          type: ["string", "null"]
+        attemptNumber:
+          type: integer
+        status:
+          type: string
+          enum: [running, completed, failed]
+        startedAt:
+          type: ["string", "null"]
+        finishedAt:
+          type: ["string", "null"]
+        errorMessage:
+          type: ["string", "null"]
+        result:
+          type: ["object", "null"]
+
+    JobLog:
+      type: object
+      required: [id, logLevel, message, timestamp]
+      properties:
+        id:
+          type: string
+        jobExecutionId:
+          type: ["string", "null"]
+        timestamp:
+          type: ["string", "null"]
+        logLevel:
+          type: string
+          enum: [info, warn, error]
+        message:
+          type: string
+
+    Worker:
+      type: object
+      required: [id, name, status, registeredAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, draining, dead]
+        lastHeartbeatAt:
+          type: ["string", "null"]
+        registeredAt:
+          type: ["string", "null"]
+
+    WorkerHeartbeat:
+      type: object
+      required: [id, workerId, timestamp]
+      properties:
+        id:
+          type: string
+        workerId:
+          type: ["string", "null"]
+        timestamp:
+          type: ["string", "null"]
+        cpuUsage:
+          type: ["number", "null"]
+        memoryUsage:
+          type: ["number", "null"]
+        activeJobCount:
+          type: ["integer", "null"]
+
+    ScheduledJob:
+      type: object
+      required: [id, queueId, jobTemplate, cronExpression, isActive, createdAt]
+      properties:
+        id:
+          type: string
+        queueId:
+          type: string
+        jobTemplate:
+          type: object
+        cronExpression:
+          type: string
+        nextRunAt:
+          type: ["string", "null"]
+        lastRunAt:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: ["string", "null"]
+
+    ScheduledJobInput:
+      type: object
+      required: [queueId, jobTemplate, cronExpression]
+      properties:
+        queueId:
+          type: string
+        jobTemplate:
+          type: object
+        cronExpression:
+          type: string
+
+    DeadLetterJob:
+      type: object
+      required: [id, queueId, payload, movedAt]
+      properties:
+        id:
+          type: string
+        originalJobId:
+          type: ["string", "null"]
+        queueId:
+          type: string
+        payload:
+          type: object
+        failureReason:
+          type: ["string", "null"]
+        movedAt:
+          type: ["string", "null"]
+
+    DeadLetterPage:
+      type: object
+      required: [data, total, page, limit]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeadLetterJob"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    ThroughputPoint:
+      type: object
+      required: [time, completed, failed]
+      properties:
+        time:
+          type: string
+        completed:
+          type: integer
+        failed:
+          type: integer
+
+    ThroughputMetrics:
+      type: object
+      required: [range, data]
+      properties:
+        range:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThroughputPoint"
+
+    MetricsSummary:
+      type: object
+      required: [totalJobs, activeWorkers, queued, running, completed, failed, deadLetter, successRate]
+      properties:
+        totalJobs:
+          type: integer
+        activeWorkers:
+          type: integer
+        queued:
+          type: integer
+        running:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        deadLetter:
+          type: integer
+        successRate:
+          type: number
